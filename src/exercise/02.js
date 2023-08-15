@@ -10,17 +10,26 @@ import {
   PokemonErrorBoundary,
 } from '../pokemon'
 
-// 🐨 this is going to be our generic asyncReducer
 function asyncReducer(state, action) {
   switch (action.type) {
     case 'pending': {
-      return {status: 'pending', data: null, error: null}
+      return {status: 'pending', data: null, error: null, run: action.run}
     }
     case 'resolved': {
-      return {status: 'resolved', data: action.data, error: null}
+      return {
+        status: 'resolved',
+        data: action.data,
+        error: null,
+        run: action.run,
+      }
     }
     case 'rejected': {
-      return {status: 'rejected', data: null, error: action.error}
+      return {
+        status: 'rejected',
+        data: null,
+        error: action.error,
+        run: action.run,
+      }
     }
     default: {
       throw new Error(`Unhandled action type: ${action.type}`)
@@ -28,16 +37,14 @@ function asyncReducer(state, action) {
   }
 }
 
-function useAsync(asyncCallback, initialState) {
+function useAsync(initialState) {
   const [state, dispatch] = React.useReducer(asyncReducer, {
     status: 'idle',
     data: null,
     error: null,
     ...initialState,
   })
-
-  React.useEffect(() => {
-    const promise = asyncCallback()
+  const run = React.useCallback(promise => {
     if (!promise) {
       return
     }
@@ -50,23 +57,23 @@ function useAsync(asyncCallback, initialState) {
         dispatch({type: 'rejected', error})
       },
     )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asyncCallback])
-  return state
+  }, [])
+
+  return {...state, run}
 }
 
 function PokemonInfo({pokemonName}) {
-  const asyncCallback = React.useCallback(() => {
+  const {data, status, error, run} = useAsync({
+    status: pokemonName ? 'pending' : 'idle',
+  })
+
+  React.useEffect(() => {
     if (!pokemonName) {
       return
     }
-    return fetchPokemon(pokemonName)
-  }, [pokemonName])
-  const state = useAsync(asyncCallback, {
-    status: pokemonName ? 'pending' : 'idle',
-  })
-  // 🐨 this will change from "pokemon" to "data"
-  const {data, status, error} = state
+    const pokemonPromise = fetchPokemon(pokemonName)
+    run(pokemonPromise)
+  }, [pokemonName, run])
 
   switch (status) {
     case 'idle':
